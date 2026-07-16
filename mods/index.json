@@ -17,6 +17,14 @@
       "entry": "mods/battle-panel/battle-panel.js"
     },
     {
+      "id": "ground-items-panel",
+      "name": "Ground Items Panel",
+      "version": "1.0.0",
+      "author": "Frappe",
+      "description": "Lists ground items on screen; click to pick up, right-click to pin an item.",
+      "entry": "mods/ground-items-panel/ground-items-panel.js"
+    },
+    {
       "id": "hunting-panel",
       "name": "Hunting Panel",
       "version": "2.2.2",

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Flat Mod Loader
 // @namespace    flatmmo
-// @version      1.2.8
+// @version      1.2.9
 // @description  A mod loader for FlatMMO: mod base (panels, dock, manager) plus fetch-and-run mods from GitHub sources (each a repo with a mods/index.json). Install once; add sources and toggle mods in the manager.
 // @author       Frappe
 // @match        *://flatmmo.com/play.php*
@@ -19,7 +19,7 @@
 (function () {
   "use strict";
 
-  const VERSION = "1.2.8";
+  const VERSION = "1.2.9";
   if (window.FML && window.FML.version >= VERSION) return;
 
   const DOCK_W = 280; // px width of the right-side dock sidebar
@@ -59,11 +59,13 @@
   // Thin, direct accessors for the game globals our mods keep re-reading.
   const game = {
     npcs() { return typeof npcs !== "undefined" ? npcs : window.npcs; },
+    groundItems() { return typeof ground_items !== "undefined" ? ground_items : window.ground_items; },
     getVar(key) { return window.get_var(key); },
     level(xp) { return window.get_level(xp); },
     xpForLevel(level) { return window.get_xp_required(level); },
     localName() { return typeof Globals !== "undefined" ? Globals.local_username : undefined; },
     attackNpc(uuid) { window.send_unrepeatable_bytes_1s("CLICKS_NPC=" + uuid); },
+    clickGroundItem(uuid) { Globals.websocket.send("CLICKED_GROUND_ITEM=" + uuid); },
     switchPanel(id) { window.switch_panels(id); },
   };
 
