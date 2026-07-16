@@ -1,0 +1,68 @@
+{
+  "mods": [
+    {
+      "id": "xp-tracker",
+      "name": "XP Tracker",
+      "version": "2.3.0",
+      "author": "Frappe",
+      "description": "Per-skill session XP, XP/hr, and actions-to-next-level. Draggable + dockable panel.",
+      "entry": "mods/xp-tracker/xp-tracker.js"
+    },
+    {
+      "id": "battle-panel",
+      "name": "Battle Panel",
+      "version": "2.3.0",
+      "author": "Frappe",
+      "description": "Lists on-screen enemies; click to attack, right-click to pin a type.",
+      "entry": "mods/battle-panel/battle-panel.js"
+    },
+    {
+      "id": "hunting-panel",
+      "name": "Hunting Panel",
+      "version": "2.2.1",
+      "author": "Frappe",
+      "description": "Prettier, clickable hunting expedition tracker with Double/Half Count toggles.",
+      "entry": "mods/hunting-panel/hunting-panel.js"
+    },
+    {
+      "id": "buff-panel",
+      "name": "Buff Panel",
+      "version": "2.2.0",
+      "author": "Frappe",
+      "description": "Fixed-size buff slots, time under each icon, pulsing red when a buff is about to run out.",
+      "entry": "mods/buff-panel/buff-panel.js"
+    },
+    {
+      "id": "shift-to-drop",
+      "name": "Shift To Drop",
+      "version": "1.0.0",
+      "author": "Frappe",
+      "description": "Hold the modifier and left-click an inventory item to drop it instantly.",
+      "entry": "mods/shift-to-drop/shift-to-drop.js"
+    },
+    {
+      "id": "hotbar",
+      "name": "Hotbar",
+      "version": "1.3.0",
+      "author": "Frappe",
+      "description": "Adds a hotbar with keybind support.",
+      "entry": "mods/hotbar/hotbar.js"
+    },
+    {
+      "id": "loot-tracker",
+      "name": "Loot Tracker",
+      "version": "1.3.1",
+      "author": "Frappe",
+      "description": "Tracks the loot that drops on the ground from your kills.",
+      "entry": "mods/loot-tracker/loot-tracker.js"
+    },
+    {
+      "id": "chat-box",
+      "name": "Chat",
+      "version": "1.5.0",
+      "author": "Frappe",
+      "description": "Replaces the game chat.",
+      "entry": "mods/chat-box/chat-box.js"
+    }
+  ]
+}
