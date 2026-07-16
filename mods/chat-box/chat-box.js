@@ -136,6 +136,8 @@
       if (this._offGlobal) { this._offGlobal(); this._offGlobal = null; }
       if (this._keypressGuard) { window.removeEventListener("keypress", this._keypressGuard, true); this._keypressGuard = null; }
       if (this._origAddToChat) { window.add_to_chat = this._origAddToChat; this._origAddToChat = null; }
+      if (this._nativeTextInput && this._sendGuard) this._nativeTextInput.removeEventListener("keydown", this._sendGuard);
+      this._sendGuard = null;
       if (this._nativeInput && this._nativeInputHome) this._nativeInputHome.appendChild(this._nativeInput);
       if (this._nativeLog) this._nativeLog.style.display = this._nativeLogDisplay || "";
       if (this._onResize) { window.removeEventListener("resize", this._onResize); this._onResize = null; }
@@ -212,6 +214,18 @@
       this._nativeInputHome = input.parentNode;
       this.inputRow.appendChild(input);
       this._nativeTextInput = document.getElementById("chat-text-input"); // for focus-on-tab
+      // Channel-aware send: on the Global tab, a plain Enter sends via /yell instead of
+      // vanilla local chat (mirrors the read-side split - see classify()). Runs on
+      // keydown, before the game's onkeypress=key_press_chatbox handler reads the value.
+      this._sendGuard = (e) => this.guardSend(e);
+      if (this._nativeTextInput) this._nativeTextInput.addEventListener("keydown", this._sendGuard);
+    }
+
+    guardSend(e) {
+      if (e.key !== "Enter" || this.filter !== "global") return;
+      const v = e.target.value;
+      if (!v || v.startsWith("/")) return; // leave commands (incl. an explicit /yell) alone
+      e.target.value = "/yell " + v;
     }
 
     hideNativeLog() {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Flat Mod Loader
 // @namespace    flatmmo
-// @version      1.2.6
+// @version      1.2.8
 // @description  A mod loader for FlatMMO: mod base (panels, dock, manager) plus fetch-and-run mods from GitHub sources (each a repo with a mods/index.json). Install once; add sources and toggle mods in the manager.
 // @author       Frappe
 // @match        *://flatmmo.com/play.php*
@@ -19,7 +19,7 @@
 (function () {
   "use strict";
 
-  const VERSION = "1.2.6";
+  const VERSION = "1.2.8";
   if (window.FML && window.FML.version >= VERSION) return;
 
   const DOCK_W = 280; // px width of the right-side dock sidebar
@@ -168,6 +168,8 @@
       #fml-dock::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.22); border-radius: 8px; }
       #fml-dock.fml-dock-hint { border-color: rgba(120,170,255,0.9); box-shadow: 0 0 0 2px rgba(120,170,255,0.35), 0 2px 12px rgba(0,0,0,0.5); }
       .fml-dock-empty { margin: auto; padding: 12px 10px; text-align: center; font: 12px/1.4 sans-serif; color: #9fb0c0; border: 2px dashed rgba(255,255,255,0.18); border-radius: 8px; }
+      .fml-dock-resize { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; z-index: 2; }
+      .fml-dock-resize::after { content: ""; position: absolute; right: 3px; bottom: 3px; width: 7px; height: 7px; border-right: 2px solid rgba(255,255,255,0.4); border-bottom: 2px solid rgba(255,255,255,0.4); }
       .fml-panel.fml-docked { position: relative; left: auto; top: auto; width: 100%; box-shadow: none; flex: 0 0 auto; }
       .fml-panel.fml-docked .fml-header { cursor: grab; }
       .fml-panel.fml-docked .fml-resize { display: none; }
@@ -576,10 +578,13 @@
     const bg = localStorage.getItem("fml.global.panelBg");
     const op = localStorage.getItem("fml.global.panelOpacity");
     const dw = localStorage.getItem("fml.global.dockWidth");
+    const dh = localStorage.getItem("fml.global.dockHeight");
     return {
       panelBg: bg || GLOBAL_DEFAULTS.panelBg,
       panelOpacity: op == null ? GLOBAL_DEFAULTS.panelOpacity : Number(op),
       dockWidth: dw == null ? GLOBAL_DEFAULTS.dockWidth : Number(dw),
+      // null = auto (matches the canvas height); a number is a user-dragged override.
+      dockHeight: dh == null ? null : Number(dh),
     };
   }
 
@@ -863,26 +868,12 @@
     opInput.oninput = () => { opVal.textContent = opInput.value; setGlobal("panelOpacity", parseInt(opInput.value)); };
     opField.append(opLabel, opInput, opVal);
 
-    const dwField = document.createElement("div");
-    dwField.className = "fml-field";
-    const dwLabel = document.createElement("label");
-    dwLabel.textContent = "Dock width (px)";
-    const dwInput = document.createElement("input");
-    dwInput.type = "range";
-    dwInput.min = 180; dwInput.max = 480; dwInput.step = 10;
-    dwInput.value = g.dockWidth;
-    const dwVal = document.createElement("span");
-    dwVal.className = "fml-rangeval";
-    dwVal.textContent = g.dockWidth;
-    dwInput.oninput = () => { dwVal.textContent = dwInput.value; setGlobal("dockWidth", parseInt(dwInput.value)); };
-    dwField.append(dwLabel, dwInput, dwVal);
-
     const note = document.createElement("div");
     note.className = "fml-mod-desc";
     note.style.marginTop = "4px";
-    note.textContent = "Background/opacity apply to all mod panels (docked panels ignore opacity). Dock width resizes the docked sidebar.";
+    note.textContent = "Applies to all mod panels (docked panels ignore opacity). Drag the dock's bottom-right handle to resize it.";
 
-    body.append(bgField, opField, dwField, note);
+    body.append(bgField, opField, note);
     card.append(head, body);
     return card;
   }
@@ -1021,8 +1012,41 @@
       document.body.appendChild(el);
       this.el = el;
       el.style.setProperty("--fml-dock-w", globalSettings().dockWidth + "px");
+      this._wireResize();
       window.addEventListener("resize", () => this.layout());
       this.layout();
+    },
+    // Drag the bottom-right handle to resize the dock (both width and height, like a
+    // panel's own resize grip). Width always persists; height persists too and then
+    // overrides the default canvas-derived height until dragged again.
+    _wireResize() {
+      const handle = document.createElement("div");
+      handle.className = "fml-dock-resize";
+      this.el.appendChild(handle);
+      handle.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const startX = e.clientX, startY = e.clientY;
+        const rect = this.el.getBoundingClientRect();
+        const startW = rect.width, startH = rect.height;
+        const move = (ev) => {
+          const w = Math.max(180, Math.min(startW + (ev.clientX - startX), window.innerWidth - 20));
+          const h = Math.max(120, Math.min(startH + (ev.clientY - startY), window.innerHeight - 20));
+          this.el.style.setProperty("--fml-dock-w", w + "px");
+          this.el.style.height = h + "px";
+          this.layout(true); // keep left/top synced; don't let layout stomp our live height
+        };
+        const up = () => {
+          document.removeEventListener("pointermove", move);
+          document.removeEventListener("pointerup", up);
+          const r = this.el.getBoundingClientRect();
+          localStorage.setItem("fml.global.dockHeight", String(Math.round(r.height)));
+          setGlobal("dockWidth", Math.round(r.width));
+        };
+        document.addEventListener("pointermove", move);
+        document.addEventListener("pointerup", up);
+      });
     },
     // Re-applies the global dock width (called from FML._applyGlobal on change).
     applyGlobal() {
@@ -1030,9 +1054,11 @@
       this.el.style.setProperty("--fml-dock-w", globalSettings().dockWidth + "px");
       this.layout();
     },
-    layout() {
+    layout(skipHeight) {
       if (!this.el) return;
-      const dockW = globalSettings().dockWidth;
+      // Read the actual rendered width (not the saved setting) so this stays accurate
+      // mid-drag, when the CSS var has already changed but nothing's persisted yet.
+      const dockW = this.el.getBoundingClientRect().width || globalSettings().dockWidth;
       const canvas = document.getElementById("canvas");
       const rect = canvas
         ? canvas.getBoundingClientRect()
@@ -1041,7 +1067,11 @@
       left = Math.max(0, left);
       this.el.style.left = left + "px";
       this.el.style.top = Math.max(0, rect.top) + "px";
-      this.el.style.height = rect.height + "px";
+      // A user-dragged height overrides the default (match-the-canvas) height.
+      if (!skipHeight) {
+        const dockH = globalSettings().dockHeight;
+        this.el.style.height = (dockH != null ? dockH : rect.height) + "px";
+      }
     },
     add(panel) {
       this.ensure();

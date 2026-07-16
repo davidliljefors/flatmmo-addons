@@ -59,7 +59,7 @@
     {
       "id": "chat-box",
       "name": "Chat",
-      "version": "1.5.1",
+      "version": "1.6.0",
       "author": "Frappe",
       "description": "Replaces the game chat.",
       "entry": "mods/chat-box/chat-box.js"
