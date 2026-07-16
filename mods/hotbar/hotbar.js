@@ -199,7 +199,7 @@
     document.head.appendChild(style);
   }
 
-  class Hotbar extends FML.Plugin {
+  class Hotbar extends FML.Mod {
     constructor() {
       super("hotbar", {
         config: [],

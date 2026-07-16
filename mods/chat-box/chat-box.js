@@ -84,7 +84,7 @@
     document.head.appendChild(style);
   }
 
-  class ChatBox extends FML.Plugin {
+  class ChatBox extends FML.Mod {
     constructor() {
       super("chat-box", {
         config: [

@@ -38,7 +38,7 @@
     document.head.appendChild(style);
   }
 
-  class BattlePanel extends FML.Plugin {
+  class BattlePanel extends FML.Mod {
     constructor() {
       super("battle-panel", {
         config: [
@@ -54,7 +54,7 @@
       this.pinnedTypes = new Set();   // npc.name values pinned to the top
     }
 
-    // ---- lifecycle (from FML.Plugin) ----
+    // ---- lifecycle (from FML.Mod) ----
 
     onStart() {
       injectCss();

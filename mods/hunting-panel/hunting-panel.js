@@ -50,7 +50,7 @@
     document.head.appendChild(style);
   }
 
-  class HuntingPanel extends FML.Plugin {
+  class HuntingPanel extends FML.Mod {
     constructor() {
       super("hunting-panel", {
         config: [
@@ -81,7 +81,7 @@
       this._pendingToggleTimer = null;
     }
 
-    // ---- lifecycle (from FML.Plugin) ----
+    // ---- lifecycle (from FML.Mod) ----
 
     onStart() {
       injectCss();

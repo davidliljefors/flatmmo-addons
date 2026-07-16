@@ -29,7 +29,7 @@
     document.head.appendChild(style);
   }
 
-  class BuffPanel extends FML.Plugin {
+  class BuffPanel extends FML.Mod {
     constructor() {
       super("buff-panel", {
         config: [
@@ -45,7 +45,7 @@
       this._order = "";        // current DOM order (sorted by remaining ticks)
     }
 
-    // ---- lifecycle (from FML.Plugin) ----
+    // ---- lifecycle (from FML.Mod) ----
 
     onStart() {
       injectCss();

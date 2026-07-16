@@ -10,7 +10,7 @@
     Globals.websocket.send((dropAll ? "DROP_ALL_ITEM=" : "DROP_ITEM=") + item);
   }
 
-  class ShiftToDrop extends FML.Plugin {
+  class ShiftToDrop extends FML.Mod {
     constructor() {
       super("shift-to-drop", {
         config: [

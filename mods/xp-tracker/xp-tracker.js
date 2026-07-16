@@ -42,7 +42,7 @@
     document.head.appendChild(style);
   }
 
-  class XpTracker extends FML.Plugin {
+  class XpTracker extends FML.Mod {
     constructor() {
       super("xp-tracker", {
         config: [
@@ -55,7 +55,7 @@
       this.collapsed = new Set();  // skills collapsed to the compact icon + XP/hr row
     }
 
-    // ---- lifecycle (from FML.Plugin) ----
+    // ---- lifecycle (from FML.Mod) ----
 
     onStart() {
       injectCss();

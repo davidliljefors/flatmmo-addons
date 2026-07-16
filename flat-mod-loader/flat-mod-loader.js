@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Flat Mod Loader
 // @namespace    flatmmo
-// @version      1.2.5
-// @description  A mod loader for FlatMMO: plugin base (panels, dock, manager) plus fetch-and-run mods from GitHub sources (each a repo with a mods/index.json). Install once; add sources and toggle mods in the manager.
+// @version      1.2.6
+// @description  A mod loader for FlatMMO: mod base (panels, dock, manager) plus fetch-and-run mods from GitHub sources (each a repo with a mods/index.json). Install once; add sources and toggle mods in the manager.
 // @author       Frappe
 // @match        *://flatmmo.com/play.php*
 // @grant        none
@@ -11,7 +11,7 @@
 
 /*
  * Flat Mod Loader (FML). Runs on top of FlatMMOPlus (page context, @grant none).
- * Exposes window.FML: a Plugin base, a draggable/dockable Panel, a keyed List, game
+ * Exposes window.FML: a Mod base, a draggable/dockable Panel, a keyed List, game
  * helpers, a manager UI, and a mod loader that fetches mods from GitHub "sources" (a repo
  * with a mods/index.json) and injects the enabled ones. Mods are plain JS using the FML
  * API - no userscript header or @require needed.
@@ -19,7 +19,7 @@
 (function () {
   "use strict";
 
-  const VERSION = "1.2.5";
+  const VERSION = "1.2.6";
   if (window.FML && window.FML.version >= VERSION) return;
 
   const DOCK_W = 280; // px width of the right-side dock sidebar
@@ -56,7 +56,7 @@
     },
   };
 
-  // Thin, direct accessors for the game globals our plugins keep re-reading.
+  // Thin, direct accessors for the game globals our mods keep re-reading.
   const game = {
     npcs() { return typeof npcs !== "undefined" ? npcs : window.npcs; },
     getVar(key) { return window.get_var(key); },
@@ -176,8 +176,8 @@
   }
 
   class FMLPanel {
-    constructor(plugin, opts = {}) {
-      this.plugin = plugin;
+    constructor(mod, opts = {}) {
+      this.mod = mod;
       this.collapsible = opts.collapsible !== false;
       this.draggable = opts.draggable !== false;
       this.collapsed = !!opts.collapsed;
@@ -186,18 +186,18 @@
       this.dockable = opts.dockable !== false;
       this._width = opts.width || null;
       this._maxHeight = opts.maxHeight || null;
-      this.docked = this.dockable && FML._loadDocked(plugin.id);
-      this._pos = FML._loadPos(plugin.id);
-      this._size = this.resizable ? FML._loadSize(plugin.id) : null;
-      plugin._panel = this;
+      this.docked = this.dockable && FML._loadDocked(mod.id);
+      this._pos = FML._loadPos(mod.id);
+      this._size = this.resizable ? FML._loadSize(mod.id) : null;
+      mod._panel = this;
       ensurePanelStyle();
-      this._build(opts.title || (plugin.opts.about && plugin.opts.about.name) || plugin.id);
+      this._build(opts.title || (mod.opts.about && mod.opts.about.name) || mod.id);
     }
 
     _build(title) {
       const el = document.createElement("div");
       el.className = "fml-panel";
-      el.id = "fml-" + this.plugin.id;
+      el.id = "fml-" + this.mod.id;
 
       const header = document.createElement("div");
       header.className = "fml-header";
@@ -334,7 +334,7 @@
     setTitle(text) { this.titleEl.textContent = text; }
     setCollapsed(v) { this.collapsed = v; this.el.classList.toggle("fml-collapsed", v); }
     toggleCollapse() { this.setCollapsed(!this.collapsed); }
-    close() { FML.setConfig(this.plugin, "enabled", false); }
+    close() { FML.setConfig(this.mod, "enabled", false); }
 
     mount() {
       if (!this._resizeBound) {
@@ -346,7 +346,7 @@
       } else if (!this.el.isConnected) {
         document.body.appendChild(this.el);
       }
-      this.applySettings(this.plugin.settings);
+      this.applySettings(this.mod.settings);
     }
 
     unmount() {
@@ -373,10 +373,10 @@
 
     resetPosition() {
       this._pos = null;
-      FML._savePos(this.plugin.id, null);
+      FML._savePos(this.mod.id, null);
       if (this.resizable) {
         this._size = null;
-        FML._saveSize(this.plugin.id, null);
+        FML._saveSize(this.mod.id, null);
         this.el.style.width = "";
         this.el.style.height = "";
         this.el.style.maxHeight = "";
@@ -446,7 +446,7 @@
         if (this.dockable) FML.dock.endDropHint();
         if (!moved) return;
         if (this.docked) FML.dock.persistOrder();
-        else if (this.draggable) FML._savePos(this.plugin.id, this._pos);
+        else if (this.draggable) FML._savePos(this.mod.id, this._pos);
       };
       document.addEventListener("pointermove", move);
       document.addEventListener("pointerup", up);
@@ -476,7 +476,7 @@
         const up = () => {
           document.removeEventListener("pointermove", move);
           document.removeEventListener("pointerup", up);
-          FML._saveSize(this.plugin.id, this._size);
+          FML._saveSize(this.mod.id, this._size);
         };
         document.addEventListener("pointermove", move);
         document.addEventListener("pointerup", up);
@@ -489,7 +489,7 @@
     setDocked(v) {
       if (v === this.docked) return;
       this.docked = v;
-      FML._saveDocked(this.plugin.id, v);
+      FML._saveDocked(this.mod.id, v);
       this.el.classList.toggle("fml-docked", v);
       if (v) {
         // Drop floating inline styles so the docked CSS (relative, 100% width) applies.
@@ -510,9 +510,9 @@
     }
   }
 
-  // ---- plugin base ----------------------------------------------------------
+  // ---- mod base --------------------------------------------------------------
 
-  class FMLPlugin extends FlatMMOPlusPlugin {
+  class FMLMod extends FlatMMOPlusPlugin {
     constructor(id, opts) {
       opts = opts || {};
       opts.config = opts.config || [];
@@ -528,7 +528,7 @@
       this._settings = {};
       FML._register(this);
 
-      // Register synchronously so FlatMMOPlus loads plugin.config right away - the
+      // Register synchronously so FlatMMOPlus loads the mod's config right away - the
       // loader reads it via setConfig() immediately after injecting the mod. (The
       // "onStart runs before the subclass constructor finishes" hazard is handled by
       // deferring _apply() in onLogin(), not by delaying registration.)
@@ -537,7 +537,7 @@
 
     get settings() { return this._settings; }
 
-    // Interval that is auto-cleared when the plugin stops/disables.
+    // Interval that is auto-cleared when the mod stops/disables.
     every(ms, fn) { const h = setInterval(fn, ms); this._timers.push(h); return h; }
     _clearTimers() { this._timers.forEach(clearInterval); this._timers = []; }
 
@@ -562,7 +562,7 @@
     }
   }
 
-  // ---- shared config preset for panel plugins -------------------------------
+  // ---- shared config preset for panel mods ----------------------------------
 
   // Deprecated: panel background + opacity are now GLOBAL (see the manager's "Global
   // settings"). Kept as a no-op so any mod that still spreads it keeps loading.
@@ -596,21 +596,21 @@
 
   // ---- config persistence (drive FlatMMOPlus programmatically) --------------
 
-  function setConfig(plugin, key, value) {
-    // Ensure plugin.config exists WITHOUT calling FlatMMOPlusPlugin.getConfig(): its
-    // auto-load path calls FlatMMOPlus.loadPluginConfigs as a static, but that's a
-    // prototype method - so it throws if the plugin isn't registered yet. Load it the
-    // working way (on the instance) when registered, else start from an empty object.
-    if (!plugin.config) {
+  function setConfig(mod, key, value) {
+    // Ensure mod.config exists WITHOUT calling FlatMMOPlusPlugin.getConfig() (FlatMMOPlus's
+    // own base class): its auto-load path calls FlatMMOPlus.loadPluginConfigs as a static,
+    // but that's a prototype method - so it throws if the mod isn't registered yet. Load it
+    // the working way (on the instance) when registered, else start from an empty object.
+    if (!mod.config) {
       const fmp = window.FlatMMOPlus;
-      if (fmp && typeof fmp.loadPluginConfigs === "function" && plugin.id in fmp.plugins) {
-        fmp.loadPluginConfigs(plugin.id);
+      if (fmp && typeof fmp.loadPluginConfigs === "function" && mod.id in fmp.plugins) {
+        fmp.loadPluginConfigs(mod.id);
       }
-      if (!plugin.config) plugin.config = {};
+      if (!mod.config) mod.config = {};
     }
-    plugin.config[key] = value;
-    localStorage.setItem(`flatmmoplus.${plugin.id}.config`, JSON.stringify(plugin.config));
-    if (plugin.onConfigsChanged) plugin.onConfigsChanged();
+    mod.config[key] = value;
+    localStorage.setItem(`flatmmoplus.${mod.id}.config`, JSON.stringify(mod.config));
+    if (mod.onConfigsChanged) mod.onConfigsChanged();
   }
 
   const BOOL = ["checkbox", "bool", "boolean"];
@@ -689,19 +689,19 @@
     document.head.appendChild(style);
   }
 
-  function renderField(plugin, cfg) {
+  function renderField(mod, cfg) {
     const field = document.createElement("div");
     field.className = "fml-field";
     const label = document.createElement("label");
     label.textContent = cfg.label || cfg.id;
-    const value = plugin.getConfig(cfg.id);
+    const value = mod.getConfig(cfg.id);
 
     let input;
     if (BOOL.includes(cfg.type)) {
       input = document.createElement("input");
       input.type = "checkbox";
       input.checked = !!value;
-      input.onchange = () => setConfig(plugin, cfg.id, input.checked);
+      input.onchange = () => setConfig(mod, cfg.id, input.checked);
     } else if (RANGE.includes(cfg.type)) {
       input = document.createElement("input");
       input.type = "range";
@@ -710,7 +710,7 @@
       const val = document.createElement("span");
       val.className = "fml-rangeval";
       val.textContent = value;
-      input.oninput = () => { val.textContent = input.value; setConfig(plugin, cfg.id, parseInt(input.value)); };
+      input.oninput = () => { val.textContent = input.value; setConfig(mod, cfg.id, parseInt(input.value)); };
       field.appendChild(label); field.appendChild(input); field.appendChild(val);
       return field;
     } else if (INT.includes(cfg.type) || FLOAT.includes(cfg.type)) {
@@ -721,7 +721,7 @@
       if (cfg.step != null) input.step = cfg.step;
       input.value = value;
       const parse = INT.includes(cfg.type) ? parseInt : parseFloat;
-      input.onchange = () => setConfig(plugin, cfg.id, parse(input.value));
+      input.onchange = () => setConfig(mod, cfg.id, parse(input.value));
     } else if (SEL.includes(cfg.type)) {
       input = document.createElement("select");
       (cfg.options || []).forEach((opt) => {
@@ -731,17 +731,17 @@
         if (ov === value) o.selected = true;
         input.appendChild(o);
       });
-      input.onchange = () => setConfig(plugin, cfg.id, input.value);
+      input.onchange = () => setConfig(mod, cfg.id, input.value);
     } else if (COL.includes(cfg.type)) {
       input = document.createElement("input");
       input.type = "color";
       input.value = value || "#000000";
-      input.oninput = () => setConfig(plugin, cfg.id, input.value);
+      input.oninput = () => setConfig(mod, cfg.id, input.value);
     } else {
       input = document.createElement("input");
       input.type = "text";
       input.value = value == null ? "" : value;
-      input.onchange = () => setConfig(plugin, cfg.id, input.value);
+      input.onchange = () => setConfig(mod, cfg.id, input.value);
     }
 
     field.appendChild(label);
@@ -752,7 +752,7 @@
   // One unified entry per mod: name + version + enable toggle in the head, and the
   // mod's live settings (once loaded) in the expandable body - no separate card.
   function buildModCard(s, m) {
-    const plugin = loader.plugin(m);
+    const mod = loader.mod(m);
     const enabled = loader.isEnabled(s, m);
 
     const card = document.createElement("div");
@@ -794,10 +794,10 @@
       d.textContent = m.description;
       body.appendChild(d);
     }
-    if (plugin) {
-      for (const cfg of plugin.opts.config) {
+    if (mod) {
+      for (const cfg of mod.opts.config) {
         if (cfg.id === "enabled") continue;
-        body.appendChild(renderField(plugin, cfg));
+        body.appendChild(renderField(mod, cfg));
       }
       const reset = document.createElement("div");
       reset.className = "fml-reset-pos";
@@ -1047,7 +1047,7 @@
       this.ensure();
       if (!this._panels.includes(panel)) this._panels.push(panel);
       const order = FML._loadDockOrder();
-      if (!order.includes(panel.plugin.id)) { order.push(panel.plugin.id); FML._saveDockOrder(order); }
+      if (!order.includes(panel.mod.id)) { order.push(panel.mod.id); FML._saveDockOrder(order); }
       this._reorder();
       this.el.classList.add("fml-dock-show");
       this._updateEmpty();
@@ -1056,14 +1056,14 @@
     remove(panel, forget) {
       const i = this._panels.indexOf(panel);
       if (i >= 0) this._panels.splice(i, 1);
-      if (forget) FML._saveDockOrder(FML._loadDockOrder().filter((x) => x !== panel.plugin.id));
+      if (forget) FML._saveDockOrder(FML._loadDockOrder().filter((x) => x !== panel.mod.id));
       if (this.el && panel.el.parentNode === this.el) this.el.removeChild(panel.el);
       this._updateEmpty();
       if (this.el && this._panels.length === 0 && !this._hinting) this.el.classList.remove("fml-dock-show");
     },
     _reorder() {
       const order = FML._loadDockOrder();
-      this._panels.sort((a, b) => order.indexOf(a.plugin.id) - order.indexOf(b.plugin.id));
+      this._panels.sort((a, b) => order.indexOf(a.mod.id) - order.indexOf(b.mod.id));
       for (const p of this._panels) this.el.appendChild(p.el);
     },
     // Live reorder while a docked panel is dragged: place it by pointer Y.
@@ -1081,7 +1081,7 @@
       }
     },
     persistOrder() {
-      FML._saveDockOrder(this._panels.map((p) => p.plugin.id));
+      FML._saveDockOrder(this._panels.map((p) => p.mod.id));
     },
     // --- drag-and-drop docking (panels dock by being dragged over this sidebar) ---
     pointInDock(x, y) {
@@ -1166,7 +1166,7 @@
       manager.refreshMods();
       for (const m of s.mods) if (FML._loadModEnabled(this.key(s.url, m.id))) this.load(s, m);
     },
-    plugin(m) { return FML._plugins.find((x) => x.id === m.id) || null; },
+    mod(m) { return FML._mods.find((x) => x.id === m.id) || null; },
     async load(s, m) {
       const k = this.key(s.url, m.id);
       if (!this._loaded[k]) {
@@ -1175,7 +1175,7 @@
         try {
           const r = await fetch(bust(s.base + entry), { cache: "no-store" });
           if (!r.ok) throw new Error("HTTP " + r.status);
-          injectMod(await r.text(), m.id); // runs synchronously → the plugin registers now
+          injectMod(await r.text(), m.id); // runs synchronously → the mod registers now
           this._loaded[k] = true;
         } catch (e) {
           m._error = String((e && e.message) || e);
@@ -1183,16 +1183,16 @@
           return;
         }
       }
-      // Switch the freshly-registered (or already-loaded) plugin ON, overriding any
+      // Switch the freshly-registered (or already-loaded) mod ON, overriding any
       // stale saved `enabled:false` - so a single toggle is enough to run it.
-      const p = this.plugin(m);
+      const p = this.mod(m);
       if (p) setConfig(p, "enabled", true);
       manager.refreshMods();
     },
     enable(s, m) { FML._saveModEnabled(this.key(s.url, m.id), true); this.load(s, m); },
     disable(s, m) {
       FML._saveModEnabled(this.key(s.url, m.id), false);
-      const p = this.plugin(m);
+      const p = this.mod(m);
       if (p) setConfig(p, "enabled", false);
       manager.refreshMods();
     },
@@ -1200,7 +1200,7 @@
     // Reset ONE mod to defaults (like "Nuke", scoped): wipe its saved settings +
     // panel position/size/dock, then restart it live so it rebuilds with defaults.
     resetMod(m) {
-      const p = this.plugin(m);
+      const p = this.mod(m);
       const wasActive = !!(p && p._active);
       if (wasActive) setConfig(p, "enabled", false); // onStop: tear down panel/hooks
       FML._nukeMod(m.id);
@@ -1231,7 +1231,7 @@
 
   const FML = {
     version: VERSION,
-    Plugin: FMLPlugin,
+    Mod: FMLMod,
     Panel: FMLPanel,
     List: FMLList,
     util,
@@ -1247,11 +1247,11 @@
     _globalListeners: (window.FML && window.FML._globalListeners) || [],
     _applyGlobal() {
       dock.applyGlobal();
-      for (const p of this._plugins) { if (p._panel) { try { p._panel.applySettings(); } catch (e) {} } }
+      for (const p of this._mods) { if (p._panel) { try { p._panel.applySettings(); } catch (e) {} } }
       for (const fn of this._globalListeners.slice()) { try { fn(globalSettings()); } catch (e) {} }
     },
-    _plugins: (window.FML && window.FML._plugins) || [],
-    _register(plugin) { this._plugins.push(plugin); },
+    _mods: (window.FML && window.FML._mods) || [],
+    _register(mod) { this._mods.push(mod); },
     _modMeta(id) {
       for (const s of loader.sources) {
         const m = (s.mods || []).find((mm) => mm.id === id);
@@ -1259,14 +1259,16 @@
       }
       return null;
     },
-    _registerWithFlatMMOPlus(plugin) {
+    // FlatMMOPlus itself still calls these "plugins" - that's its own external API name,
+    // kept here (registerPlugin) at the boundary so the rest of FML can say "mod".
+    _registerWithFlatMMOPlus(mod) {
       if (window.FlatMMOPlus && typeof window.FlatMMOPlus.registerPlugin === "function") {
-        window.FlatMMOPlus.registerPlugin(plugin);
+        window.FlatMMOPlus.registerPlugin(mod);
       } else {
         const iv = setInterval(() => {
           if (window.FlatMMOPlus && typeof window.FlatMMOPlus.registerPlugin === "function") {
             clearInterval(iv);
-            window.FlatMMOPlus.registerPlugin(plugin);
+            window.FlatMMOPlus.registerPlugin(mod);
           }
         }, 250);
       }
@@ -1323,7 +1325,7 @@
   };
 
   window.FML = FML;
-  window.FMLPlugin = FMLPlugin;
+  window.FMLMod = FMLMod;
   window.FMLPanel = FMLPanel;
   window.FMLList = FMLList;
 

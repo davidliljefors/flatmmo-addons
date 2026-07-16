@@ -37,7 +37,7 @@
     document.head.appendChild(style);
   }
 
-  class LootTracker extends FML.Plugin {
+  class LootTracker extends FML.Mod {
     constructor() {
       super("loot-tracker", {
         config: [
