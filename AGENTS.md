@@ -17,10 +17,13 @@ This repo builds **FlatMMO** mods. There are two layers:
 
 - `flat-mod-loader/flat-mod-loader.js` - the loader (the only installed userscript).
 - `mods/` - all mods live here.
-  - `mods/index.json` - the source manifest: one entry per mod (id/name/version/
-    author/description/entry). **This is the single source of truth for a mod's
-    metadata** - mods do NOT declare an `about` block.
+  - `mods/index.json` - the source manifest: one entry per mod (id/name/
+    author/description/entry/hash). **This is the single source of truth for a
+    mod's metadata** - mods do NOT declare an `about` block.
   - `mods/<kebab-name>/<kebab-name>.js` - one folder per mod, each a plain-JS IIFE.
+- `hash_mods.py` - rehashes every mod's entry file into `mods/index.json`'s `hash`
+  field. **Run this after editing any mod's `.js` file** - the loader uses the
+  hash (not a version number) to decide whether to re-download a mod.
 - `serve.py` - CORS dev server (port 8611) so you can run mods off localhost.
 - `gamesrc/` - **local copy of the live game source** (see "Getting the game source").
   Our ground truth: when you need a global, DOM id, CSS class, or websocket
@@ -35,9 +38,12 @@ This repo builds **FlatMMO** mods. There are two layers:
 2. In the manager (bottom-left "Flat Mod Loader" launcher, or `/fml` in chat) they
    add a **source**: a GitHub repo URL (or a localhost URL for dev). FML expects
    that repo to have `mods/index.json`.
-3. Each mod has a per-mod enable toggle, **default OFF**. Enabling one page-fetches
-   its `entry` file (cache-busted, `no-store`), injects it as a `<script>` in page
-   context, and the mod's top-level `new MyMod()` registers an `FML.Plugin`.
+3. Each mod has a per-mod enable toggle, **default OFF**. Enabling one loads its
+   `entry` file and injects it as a `<script>` in page context, and the mod's
+   top-level `new MyMod()` registers an `FML.Plugin`. The `mods/index.json`
+   fetch itself is always cache-busted/`no-store`, but the entry file is only
+   re-fetched when its `hash` (in `index.json`) differs from what's cached in
+   `localStorage` - so run `hash_mods.py` whenever you change a mod's code.
 
 Sources: `github.com/owner/repo[/tree/branch]` normalizes to the raw base (no
 branch → tries `main` then `master`). Other URLs (localhost, etc.) are used as-is.
@@ -56,10 +62,13 @@ Verify a mod is served:
 Invoke-RestMethod 'http://localhost:8611/mods/index.json'
 ```
 
-Mods are re-fetched cache-busted every enable, so **just reload the game** to pick
-up a mod edit. Tampermonkey/Greasemonkey **caches `@require`** content, so after
-editing `flat-mod-loader.js` itself you must reinstall / force-update it (or bump
-its `@version`) for the browser to re-fetch.
+After editing a mod, run `python hash_mods.py` to update its `hash` in
+`mods/index.json`, then reload the game - the changed hash makes the loader
+re-fetch and re-cache that mod's script. (Skipping the rehash means the loader
+keeps serving the old cached copy.) Tampermonkey/Greasemonkey **caches
+`@require`** content, so after editing `flat-mod-loader.js` itself you must
+reinstall / force-update it (or bump its `@version`) for the browser to
+re-fetch.
 
 ## Writing a new mod
 
@@ -71,16 +80,17 @@ its `@version`) for the browser to re-fetch.
 {
   "id": "my-mod",
   "name": "My Mod",
-  "version": "1.0.0",
   "author": "Frappe",
   "description": "One sentence shown in the manager.",
-  "entry": "mods/my-mod/my-mod.js"
+  "entry": "mods/my-mod/my-mod.js",
+  "hash": ""
 }
 ```
 
 `id` is the stable key (kebab-case, matches the folder/file name); `entry` is
-always written explicitly. **Name/version/author/description
-live ONLY here** - the loader reads them and hands them to FlatMMOPlus for you.
+always written explicitly. **Name/author/description live ONLY here** - the
+loader reads them and hands them to FlatMMOPlus for you. Leave `hash` as `""`
+and run `python hash_mods.py` to fill it in (see below).
 
 ### 2. Mod skeleton
 
@@ -305,6 +315,9 @@ strip `<script>` tags. Use the guest-login curl flow above.
   default (enable flag is keyed by id), and its panel pos/size/dock reset.
 - **Don't declare `about`** in a mod - `index.json` is the only source. FML sets it
   for you; an old FML (<1.2.3) won't, so keep the loader current.
+- **Forgetting to run `hash_mods.py`** after editing a mod means the loader keeps
+  serving the old cached script (the `hash` in `index.json` didn't change, so it
+  never re-fetches).
 - Prefer **message-driven** state over reading/patching game globals; avoid
   monkey-patching shared globals when a websocket message or DOM read will do.
 
@@ -314,7 +327,8 @@ strip `<script>` tags. Use the guest-login curl flow above.
   `#fml-my-mod`, `mm-row`) to avoid clashing with the game and other mods.
 - Do setup in `onStart()`, tear down fully in `onStop()`, re-apply look/settings in
   `onSettings()`. Keep a single injected `<style>` element per mod (id-guarded).
-- Bump the mod's `version` in `index.json` when behavior changes.
+- Run `python hash_mods.py` (updates `mods/index.json`'s `hash` fields) whenever
+  you change a mod's `.js` file.
 - Git commits: imperative subject ≤50 chars, body wrapped at 72, omit body if not useful.
 - User preferences: no defensive/"protective" guards for things that can't happen,
   no monkey-patching shared globals.

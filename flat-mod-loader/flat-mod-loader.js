@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Flat Mod Loader
 // @namespace    flatmmo
-// @version      1.2.9
+// @version      1.3.0
 // @description  A mod loader for FlatMMO: mod base (panels, dock, manager) plus fetch-and-run mods from GitHub sources (each a repo with a mods/index.json). Install once; add sources and toggle mods in the manager.
 // @author       Frappe
 // @match        *://flatmmo.com/play.php*
@@ -19,7 +19,7 @@
 (function () {
   "use strict";
 
-  const VERSION = "1.2.9";
+  const VERSION = "1.3.0";
   if (window.FML && window.FML.version >= VERSION) return;
 
   const DOCK_W = 280; // px width of the right-side dock sidebar
@@ -524,7 +524,7 @@
         opts.config.unshift({ id: "enabled", type: "checkbox", label: "Enabled", default: true });
       }
       const meta = FML._modMeta(id);
-      opts.about = { name: meta.name, version: meta.version, author: meta.author, description: meta.description };
+      opts.about = { name: meta.name, author: meta.author, description: meta.description };
       super(id, opts);
       this._timers = [];
       this._active = false;
@@ -756,7 +756,7 @@
     return field;
   }
 
-  // One unified entry per mod: name + version + enable toggle in the head, and the
+  // One unified entry per mod: name + enable toggle in the head, and the
   // mod's live settings (once loaded) in the expandable body - no separate card.
   function buildModCard(s, m) {
     const mod = loader.mod(m);
@@ -769,7 +769,7 @@
     head.className = "fml-card-head";
     const name = document.createElement("div");
     name.className = "fml-card-name";
-    name.textContent = (m.name || m.id) + (m.version ? "  v" + m.version : "");
+    name.textContent = m.name || m.id;
 
     const sw = document.createElement("label");
     sw.className = "fml-switch";
@@ -1205,9 +1205,19 @@
         m._error = null;
         const entry = m.entry || ("mods/" + m.id + "/mod.js");
         try {
-          const r = await fetch(bust(s.base + entry), { cache: "no-store" });
-          if (!r.ok) throw new Error("HTTP " + r.status);
-          injectMod(await r.text(), m.id); // runs synchronously → the mod registers now
+          // The index lists each mod's content hash; if it matches what we cached
+          // last time, reuse the cached source instead of re-fetching the file.
+          const cached = m.hash ? FML._loadModCache(m.id) : null;
+          let code;
+          if (cached && cached.hash === m.hash) {
+            code = cached.code;
+          } else {
+            const r = await fetch(bust(s.base + entry), { cache: "no-store" });
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            code = await r.text();
+            if (m.hash) FML._saveModCache(m.id, m.hash, code);
+          }
+          injectMod(code, m.id); // runs synchronously → the mod registers now
           this._loaded[k] = true;
         } catch (e) {
           m._error = String((e && e.message) || e);
@@ -1329,6 +1339,14 @@
     _saveSources(arr) { localStorage.setItem("fml.sources", JSON.stringify(arr)); },
     _loadModEnabled(key) { return localStorage.getItem("fml.mod." + key + ".enabled") === "1"; },
     _saveModEnabled(key, v) { if (v) localStorage.setItem("fml.mod." + key + ".enabled", "1"); else localStorage.removeItem("fml.mod." + key + ".enabled"); },
+    // Cache of a mod's fetched source, keyed by mod id + the hash from index.json.
+    // Lets the loader skip re-downloading a mod's entry file when its hash hasn't changed.
+    _loadModCache(id) {
+      try { return JSON.parse(localStorage.getItem("fml.mod." + id + ".cache")) || null; } catch (e) { return null; }
+    },
+    _saveModCache(id, hash, code) {
+      try { localStorage.setItem("fml.mod." + id + ".cache", JSON.stringify({ hash, code })); } catch (e) { /* storage full/unavailable - just skip caching */ }
+    },
     // Wipe all loader/mod data (mod configs, panel positions, dock, enabled flags,
     // and legacy keys). Keeps `fml.sources` so mods reappear after the reload.
     _nukeData() {
@@ -1345,7 +1363,7 @@
     // Wipe ONE mod's saved data: its config + all fml.<id>.* keys (panel pos/size/dock
     // and any saved layout). Keeps the loader's enabled flag so the mod stays installed.
     _nukeMod(id) {
-      const kill = ["flatmmoplus." + id + ".config"];
+      const kill = ["flatmmoplus." + id + ".config", "fml.mod." + id + ".cache"];
       const prefix = "fml." + id + ".";
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
